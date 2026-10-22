@@ -1,0 +1,12 @@
+# EngineLife requirements
+pandas
+numpy
+scipy
+statsmodels
+matplotlib
+seaborn
+scikit-learn
+xgboost
+fastapi
+uvicorn[standard]
+python-dotenv
