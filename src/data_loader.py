@@ -29,7 +29,8 @@ from typing import Tuple
 
 import pandas as pd
 
-BASE_PATH = pathlib.Path("c:/ml_package/EngineLife")
+PROJECT_ROOT = pathlib.Path(__file__).resolve().parent.parent
+BASE_PATH = PROJECT_ROOT
 
 # Expected column count for the standard C‑MAPSS files
 EXPECTED_COLS = 26

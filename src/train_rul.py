@@ -682,8 +682,7 @@ def run_training(
             )
 
     print(
-        "\nTraining complete. Artifacts saved under:",
-        out_dir,
+        f"\nTraining complete. Artifacts saved under: outputs/models/{subset}",
         flush=True
     )
 

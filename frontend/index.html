@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EngiSense — Smart Engine Health Monitoring</title>
+  <meta name="description" content="Industrial Remaining Useful Life (RUL) prediction and turbofan engine health analytics powered by XGBoost, PyTorch LSTM, and GRU models on the NASA C-MAPSS dataset.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <!-- Chart.js for responsive analytics visualizations -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body class="dark-theme">
+  <!-- Top Application Header -->
+  <header class="app-header">
+    <div class="header-left">
+      <div class="brand-logo">
+        <svg class="turbine-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M12 2a10 10 0 0 1 7.07 17.07L12 12"/>
+          <path d="M2 12a10 10 0 0 1 17.07-7.07L12 12"/>
+          <path d="M12 22a10 10 0 0 1-7.07-17.07L12 12"/>
+          <path d="M22 12a10 10 0 0 1-17.07 7.07L12 12"/>
+        </svg>
+        <div class="brand-text">
+          <h1>EngiSense</h1>
+          <span class="brand-subtitle">Smart Engine Health Monitoring</span>
+        </div>
+      </div>
+      <span class="badge badge-primary" id="dataset-badge">NASA C-MAPSS • FD001</span>
+    </div>
+
+    <div class="header-right">
+      <div class="system-status-indicator" id="system-status-box">
+        <span class="status-dot pulsing" id="status-dot"></span>
+        <span class="status-label" id="status-label">API Online</span>
+      </div>
+      <div class="header-model-pill" id="active-model-pill">
+        <span class="pill-label">Recommended Model:</span>
+        <span class="pill-value" id="header-best-model">Loading...</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Navigation Bar -->
+  <nav class="app-nav" id="main-nav">
+    <button class="nav-tab active" data-tab="dashboard" id="tab-btn-dashboard">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+      Fleet Dashboard
+    </button>
+    <button class="nav-tab" data-tab="prediction" id="tab-btn-prediction">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Engine RUL Prediction
+    </button>
+    <button class="nav-tab" data-tab="evaluation" id="tab-btn-evaluation">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      Model Benchmark & Evaluation
+    </button>
+    <button class="nav-tab" data-tab="statistics" id="tab-btn-statistics">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+      Statistical Analysis (EDA)
+    </button>
+    <button class="nav-tab" data-tab="dataset" id="tab-btn-dataset">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      Dataset & Sensors
+    </button>
+  </nav>
+
+  <!-- Notification Banner -->
+  <div id="alert-banner" class="alert-banner hidden">
+    <span id="alert-message"></span>
+    <button class="alert-close" onclick="closeAlert()">×</button>
+  </div>
+
+  <!-- Main View Container -->
+  <main class="main-content">
+    
+    <!-- ==================== TAB 1: FLEET DASHBOARD ==================== -->
+    <section id="view-dashboard" class="tab-pane active">
+      <div class="section-header">
+        <div>
+          <h2>Fleet Health Overview</h2>
+          <p class="section-desc">Real-time status across 100 turbofan test engines evaluated with validated machine-learning models.</p>
+        </div>
+        <div class="filter-controls">
+          <label for="dashboard-subset-select">Subset:</label>
+          <select id="dashboard-subset-select" class="form-select">
+            <option value="FD001" selected>FD001 (Sea Level, HPC Fault)</option>
+            <option value="FD002">FD002 (6 Conditions, HPC Fault)</option>
+            <option value="FD003">FD003 (Sea Level, HPC & Fan Faults)</option>
+            <option value="FD004">FD004 (6 Conditions, HPC & Fan Faults)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- KPI Summary Cards -->
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-icon icon-blue">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+          </div>
+          <div class="kpi-body">
+            <span class="kpi-label">Analyzed Test Engines</span>
+            <div class="kpi-value" id="kpi-engines">100</div>
+            <span class="kpi-hint">Official C-MAPSS trajectories</span>
+          </div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-icon icon-emerald">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          </div>
+          <div class="kpi-body">
+            <span class="kpi-label">Best Test RMSE</span>
+            <div class="kpi-value" id="kpi-best-rmse">--</div>
+            <span class="kpi-hint" id="kpi-best-rmse-model">Evaluated on true failure labels</span>
+          </div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-icon icon-purple">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M16 12l-4-4-4 4M12 16V9"/></svg>
+          </div>
+          <div class="kpi-body">
+            <span class="kpi-label">Best Test MAE</span>
+            <div class="kpi-value" id="kpi-best-mae">--</div>
+            <span class="kpi-hint">Operating cycles average error</span>
+          </div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-icon icon-amber">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </div>
+          <div class="kpi-body">
+            <span class="kpi-label">NASA Asymmetric Score</span>
+            <div class="kpi-value" id="kpi-nasa-score">--</div>
+            <span class="kpi-hint">Early vs late failure penalty</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dashboard Visualizations Grid -->
+      <div class="grid-2col">
+        <!-- Model Comparison Chart -->
+        <div class="card">
+          <div class="card-header">
+            <h3>Model Benchmark Comparison (Test Set)</h3>
+            <span class="badge badge-secondary">RMSE & MAE (Cycles)</span>
+          </div>
+          <div class="card-body chart-container" style="height: 300px;">
+            <canvas id="dashboardComparisonChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Fleet Health Status Distribution -->
+        <div class="card">
+          <div class="card-header">
+            <h3>Fleet RUL Health Distribution</h3>
+            <span class="badge badge-secondary">100 Test Engines</span>
+          </div>
+          <div class="card-body chart-container" style="height: 300px;">
+            <canvas id="dashboardHealthDonutChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Models Summary Table -->
+      <div class="card mt-4">
+        <div class="card-header">
+          <h3>Validated Model Comparison Summary</h3>
+          <span class="badge badge-success" id="dash-rec-badge">Recommended: --</span>
+        </div>
+        <div class="card-body table-responsive">
+          <table class="data-table" id="dashboard-models-table">
+            <thead>
+              <tr>
+                <th>Model Architecture</th>
+                <th>Input Representation</th>
+                <th>Test RMSE (Cycles)</th>
+                <th>Test MAE (Cycles)</th>
+                <th>Test R²</th>
+                <th>NASA Score</th>
+                <th>Training Time</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="dashboard-models-tbody">
+              <tr><td colspan="8" class="text-center py-4">Loading model comparison data...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 2: ENGINE RUL PREDICTION ==================== -->
+    <section id="view-prediction" class="tab-pane">
+      <div class="section-header">
+        <div>
+          <h2>Engine RUL Prediction & Diagnostics</h2>
+          <p class="section-desc">Select an operational test engine or upload custom sensor readings to calculate Remaining Useful Life.</p>
+        </div>
+      </div>
+
+      <div class="prediction-layout">
+        <!-- Input Configuration Card -->
+        <div class="card predict-controls-card">
+          <div class="card-header">
+            <h3>Diagnostic Configuration</h3>
+          </div>
+          <div class="card-body">
+            
+            <!-- Mode Toggle: Test Engine vs File Upload -->
+            <div class="toggle-group mb-4">
+              <button class="toggle-btn active" id="btn-mode-select">Select Test Engine</button>
+              <button class="toggle-btn" id="btn-mode-upload">Upload Sensor Data</button>
+            </div>
+
+            <!-- Mode 1: Select Engine Form -->
+            <div id="panel-select-engine">
+              <div class="form-group mb-3">
+                <label for="predict-engine-select" class="form-label">Select C-MAPSS Test Engine:</label>
+                <select id="predict-engine-select" class="form-select">
+                  <option value="">Loading test engines...</option>
+                </select>
+                <small class="form-hint" id="engine-hint-text">100 test trajectories available in FD001</small>
+              </div>
+            </div>
+
+            <!-- Mode 2: Upload File Form -->
+            <div id="panel-upload-file" class="hidden">
+              <div class="form-group mb-3">
+                <label class="form-label">Upload Engine Sensor Log (.txt or .csv):</label>
+                <div class="file-dropzone" id="file-dropzone">
+                  <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  <p>Drag & drop or <span class="highlight">browse</span></p>
+                  <span class="file-dropzone-hint">Standard C-MAPSS whitespace or CSV format</span>
+                  <input type="file" id="predict-file-input" accept=".txt,.csv" style="display:none;">
+                </div>
+                <div id="selected-file-name" class="selected-file-tag hidden"></div>
+              </div>
+            </div>
+
+            <!-- Model Selection -->
+            <div class="form-group mb-4">
+              <label for="predict-model-select" class="form-label">Prediction Model:</label>
+              <select id="predict-model-select" class="form-select">
+                <option value="LSTM" selected>PyTorch LSTM (Sequence Window = 30)</option>
+                <option value="GRU">PyTorch GRU (Sequence Window = 30)</option>
+                <option value="XGBoost">XGBoost Baseline (Tabular + Rolling Stats)</option>
+              </select>
+            </div>
+
+            <!-- Execute Button -->
+            <button class="btn btn-primary btn-block" id="btn-run-prediction">
+              <span class="btn-spinner hidden" id="predict-spinner"></span>
+              <span id="btn-predict-text">Analyze & Predict RUL</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Prediction Results Card -->
+        <div class="card predict-result-card" id="prediction-result-panel">
+          <div class="card-header">
+            <h3>Health Assessment & RUL Results</h3>
+            <span class="badge" id="result-status-badge">Awaiting Input</span>
+          </div>
+
+          <div class="card-body">
+            <!-- Initial Empty State -->
+            <div id="predict-empty-state" class="empty-state">
+              <div class="empty-icon">
+                <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+              </div>
+              <h4>No Engine Selected</h4>
+              <p>Choose an engine from the left panel and click "Analyze & Predict RUL" to inspect real model inferences.</p>
+            </div>
+
+            <!-- Results Content (Hidden initially) -->
+            <div id="predict-output-content" class="hidden">
+              <div class="result-hero-grid">
+                <!-- Big RUL Gauge Display -->
+                <div class="rul-gauge-box">
+                  <div class="rul-gauge-circle" id="rul-gauge-indicator">
+                    <span class="rul-cycles-num" id="res-rul-value">0</span>
+                    <span class="rul-cycles-unit">Cycles Remaining</span>
+                  </div>
+                  <div class="estimated-eol" id="res-eol-text">Failure est. at cycle --</div>
+                </div>
+
+                <!-- Ground Truth vs Prediction Comparison Box -->
+                <div class="result-metrics-box">
+                  <div class="metric-row">
+                    <span class="metric-row-label">Observed Cycles:</span>
+                    <span class="metric-row-val" id="res-observed-cycles">--</span>
+                  </div>
+                  <div class="metric-row">
+                    <span class="metric-row-label">Official NASA Reference RUL:</span>
+                    <span class="metric-row-val font-bold" id="res-official-rul">--</span>
+                  </div>
+                  <div class="metric-row">
+                    <span class="metric-row-label">Prediction Error (Residual):</span>
+                    <span class="metric-row-val" id="res-error-val">--</span>
+                  </div>
+                  <div class="metric-row">
+                    <span class="metric-row-label">Model Executed:</span>
+                    <span class="metric-row-val text-accent" id="res-model-used">--</span>
+                  </div>
+                  <div class="metric-row">
+                    <span class="metric-row-label">Degradation Risk Level:</span>
+                    <div class="risk-bar-container">
+                      <div class="risk-bar-fill" id="res-risk-bar"></div>
+                      <span class="risk-bar-text" id="res-risk-text">--%</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Maintenance Action Recommendation Box -->
+              <div class="maintenance-box" id="res-maintenance-box">
+                <div class="maintenance-title">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                  Maintenance Guidance (Operational Decision Support)
+                </div>
+                <p id="res-guidance-text" class="maintenance-text"></p>
+                <div class="disclaimer-note" id="res-disclaimer-text">
+                  Disclaimer: Predictive RUL indicators are probabilistic machine-learning estimates for operational planning. They do not replace certified physical inspections or OEM service manual criteria.
+                </div>
+              </div>
+
+              <!-- Interactive Sensor Degradation Trajectory Chart -->
+              <div class="trajectory-chart-box mt-4">
+                <div class="chart-header-row">
+                  <h4>Observed Sensor Trajectories for Engine</h4>
+                  <div class="sensor-chips" id="sensor-toggle-chips">
+                    <!-- Sensor buttons added dynamically -->
+                  </div>
+                </div>
+                <div class="chart-container" style="height: 280px;">
+                  <canvas id="engineTrajectoryChart"></canvas>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 3: MODEL BENCHMARK & EVALUATION ==================== -->
+    <section id="view-evaluation" class="tab-pane">
+      <div class="section-header">
+        <div>
+          <h2>Model Evaluation & Benchmark Comparison</h2>
+          <p class="section-desc">Strict held-out validation and official NASA test set results comparing XGBoost, PyTorch LSTM, and PyTorch GRU.</p>
+        </div>
+      </div>
+
+      <!-- Evaluation Metrics Table -->
+      <div class="card mb-4">
+        <div class="card-header">
+          <h3>Measured Quantitative Performance Protocol</h3>
+          <span class="badge badge-primary">Official NASA C-MAPSS Benchmark</span>
+        </div>
+        <div class="card-body table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Model</th>
+                <th>Validation RMSE</th>
+                <th>Validation MAE</th>
+                <th>Test RMSE (Cycles)</th>
+                <th>Test MAE (Cycles)</th>
+                <th>Test R² Score</th>
+                <th>NASA Asymmetric Penalty</th>
+                <th>Training Time (s)</th>
+                <th>Selection</th>
+              </tr>
+            </thead>
+            <tbody id="evaluation-table-body">
+              <tr><td colspan="9" class="text-center py-4">Loading benchmark metrics...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Comparison Charts -->
+      <div class="grid-2col mb-4">
+        <div class="card">
+          <div class="card-header">
+            <h3>Test Set Accuracy (RMSE & MAE)</h3>
+          </div>
+          <div class="card-body chart-container" style="height: 300px;">
+            <canvas id="evalMetricsBarChart"></canvas>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>NASA Scoring Function Comparison</h3>
+            <span class="badge badge-secondary">Lower is Better</span>
+          </div>
+          <div class="card-body chart-container" style="height: 300px;">
+            <canvas id="evalNasaScoreBarChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Model Evaluation Diagnostic Artifacts Gallery -->
+      <div class="card">
+        <div class="card-header">
+          <h3>Saved Model Diagnostic Plots</h3>
+          <div class="tab-pills" id="eval-plot-tabs">
+            <button class="pill active" data-img="actual_vs_predicted.png">Actual vs Predicted RUL</button>
+            <button class="pill" data-img="residual_analysis.png">Error Residual Distribution</button>
+            <button class="pill" data-img="training_loss.png">Sequence Models Loss Curves</button>
+            <button class="pill" data-img="feature_importance_xgboost.png">XGBoost Feature Importances</button>
+          </div>
+        </div>
+        <div class="card-body text-center p-3">
+          <div class="evaluation-image-wrapper">
+            <img id="eval-artifact-img" src="" alt="Model Diagnostic Visualization" class="responsive-img">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 4: STATISTICAL ANALYSIS ==================== -->
+    <section id="view-statistics" class="tab-pane">
+      <div class="section-header">
+        <div>
+          <h2>Exploratory Data Analysis & Statistical Inference</h2>
+          <p class="section-desc">Rigorous hypothesis tests, lifetime comparisons across subsets, Benjamini-Hochberg FDR-corrected correlations, and mixed-effects trends.</p>
+        </div>
+      </div>
+
+      <!-- Statistical Highlights Grid -->
+      <div class="grid-2col mb-4">
+        <!-- Engine Lifetime Differences Card -->
+        <div class="card">
+          <div class="card-header">
+            <h3>Engine Lifetime Comparison Across Subsets</h3>
+            <span class="badge badge-info" id="stat-test-name">One-Way ANOVA / Kruskal-Wallis</span>
+          </div>
+          <div class="card-body" id="lifetime-stats-content">
+            <p>Evaluating whether observed engine lifetimes differ significantly across C-MAPSS operating condition subsets (FD001–FD004).</p>
+            <div class="stat-highlight-box mt-3" id="lifetime-highlight-box">
+              <div class="stat-item">
+                <span class="stat-item-label">Chosen Test:</span>
+                <span class="stat-item-val" id="stat-chosen-test">--</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-item-label">Test Statistic:</span>
+                <span class="stat-item-val" id="stat-test-stat">--</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-item-label">p-value:</span>
+                <span class="stat-item-val" id="stat-p-value">--</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-item-label">H₀ Decision:</span>
+                <span class="stat-item-val" id="stat-h0-decision">--</span>
+              </div>
+            </div>
+            <div class="mt-3">
+              <h5>Pairwise Median Differences (Bootstrap 95% CI):</h5>
+              <ul class="clean-list" id="stat-pairwise-list"></ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sensor-RUL Correlations Card -->
+        <div class="card">
+          <div class="card-header">
+            <h3>Top Sensor Correlations with RUL</h3>
+            <span class="badge badge-secondary">Benjamini-Hochberg FDR Adjusted</span>
+          </div>
+          <div class="card-body table-responsive">
+            <table class="data-table" id="sensor-corr-table">
+              <thead>
+                <tr>
+                  <th>Sensor</th>
+                  <th>Pearson r</th>
+                  <th>Spearman ρ</th>
+                  <th>Raw p-value</th>
+                  <th>FDR-Adjusted p</th>
+                </tr>
+              </thead>
+              <tbody id="sensor-corr-tbody">
+                <tr><td colspan="5" class="text-center py-4">Loading sensor correlations...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mixed Effects Models Card -->
+      <div class="card">
+        <div class="card-header">
+          <h3>Sensor Degradation Rates (Mixed-Effects Models with Random Intercepts)</h3>
+          <span class="badge badge-primary">Controls for repeated engine observations</span>
+        </div>
+        <div class="card-body table-responsive">
+          <table class="data-table" id="mixed-effects-table">
+            <thead>
+              <tr>
+                <th>Sensor</th>
+                <th>Cycle Trend Slope (β₁)</th>
+                <th>Standard Error</th>
+                <th>p-value</th>
+                <th>Intraclass Correlation (ICC)</th>
+                <th>Convergence</th>
+              </tr>
+            </thead>
+            <tbody id="mixed-effects-tbody">
+              <tr><td colspan="6" class="text-center py-4">Loading mixed-effects regression statistics...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 5: DATASET INSPECTOR ==================== -->
+    <section id="view-dataset" class="tab-pane">
+      <div class="section-header">
+        <div>
+          <h2>NASA C-MAPSS Dataset & Sensor Metadata</h2>
+          <p class="section-desc">Commercial Modular Aero-Propulsion System Simulation benchmark specifications and feature engineering decisions.</p>
+        </div>
+      </div>
+
+      <div class="grid-2col mb-4">
+        <div class="card">
+          <div class="card-header">
+            <h3>Turbofan Subsets Summary</h3>
+          </div>
+          <div class="card-body table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Dataset</th>
+                  <th>Train Engines</th>
+                  <th>Test Engines</th>
+                  <th>Operating Conditions</th>
+                  <th>Fault Modes</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td><strong>FD001</strong></td><td>100</td><td>100</td><td>1 (Sea Level)</td><td>HPC Degradation</td></tr>
+                <tr><td><strong>FD002</strong></td><td>260</td><td>259</td><td>6 (Sea Level to Altitude)</td><td>HPC Degradation</td></tr>
+                <tr><td><strong>FD003</strong></td><td>100</td><td>100</td><td>1 (Sea Level)</td><td>HPC & Fan Degradation</td></tr>
+                <tr><td><strong>FD004</strong></td><td>249</td><td>248</td><td>6 (Sea Level to Altitude)</td><td>HPC & Fan Degradation</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>Feature Selection Decision Matrix (FD001)</h3>
+          </div>
+          <div class="card-body">
+            <h5 class="text-danger mb-2">Constant / Non-Informative Features (Dropped):</h5>
+            <p class="text-muted mb-3"><code>setting_3, sensor_1, sensor_5, sensor_10, sensor_16, sensor_18, sensor_19</code></p>
+            <small class="d-block mb-3">These sensors exhibit zero variance across all cycles in single-condition operation and provide zero predictive signal for degradation.</small>
+
+            <h5 class="text-success mb-2">Informative Active Sensors (Retained):</h5>
+            <p class="text-muted"><code>sensor_2, sensor_3, sensor_4, sensor_6, sensor_7, sensor_8, sensor_9, sensor_11, sensor_12, sensor_13, sensor_14, sensor_15, sensor_17, sensor_20, sensor_21</code></p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sensor Descriptions Table -->
+      <div class="card">
+        <div class="card-header">
+          <h3>NASA C-MAPSS 21 Turbofan Sensor Measurement Legend</h3>
+        </div>
+        <div class="card-body table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Symbol</th>
+                <th>Sensor Description</th>
+                <th>Physical Units</th>
+                <th>Degradation Trend</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td><code>sensor_2</code></td><td>Total temperature at LPC outlet</td><td>°R</td><td>Increases with degradation</td></tr>
+              <tr><td><code>sensor_3</code></td><td>Total temperature at HPC outlet</td><td>°R</td><td>Increases with degradation</td></tr>
+              <tr><td><code>sensor_4</code></td><td>Total temperature at LPT outlet</td><td>°R</td><td>Increases with degradation</td></tr>
+              <tr><td><code>sensor_7</code></td><td>Total pressure at HPC outlet</td><td>psia</td><td>Decreases with degradation</td></tr>
+              <tr><td><code>sensor_8</code></td><td>Physical fan speed</td><td>rpm</td><td>Decreases with degradation</td></tr>
+              <tr><td><code>sensor_9</code></td><td>Physical core speed</td><td>rpm</td><td>Increases with degradation</td></tr>
+              <tr><td><code>sensor_11</code></td><td>Static pressure at HPC outlet</td><td>psia</td><td>Decreases with degradation</td></tr>
+              <tr><td><code>sensor_12</code></td><td>Ratio of fuel flow to Ps30</td><td>pps/psi</td><td>Decreases with degradation</td></tr>
+              <tr><td><code>sensor_13</code></td><td>Corrected fan speed</td><td>rpm</td><td>Decreases with degradation</td></tr>
+              <tr><td><code>sensor_14</code></td><td>Corrected core speed</td><td>rpm</td><td>Decreases with degradation</td></tr>
+              <tr><td><code>sensor_15</code></td><td>Bypass Ratio</td><td>--</td><td>Increases with degradation</td></tr>
+              <tr><td><code>sensor_20</code></td><td>HPT coolant bleed</td><td>lbm/s</td><td>Decreases with degradation</td></tr>
+              <tr><td><code>sensor_21</code></td><td>LPT coolant bleed</td><td>lbm/s</td><td>Decreases with degradation</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="app-footer">
+    <div class="footer-content">
+      <span>EngiSense: Smart Engine Health Monitoring & Predictive Maintenance</span>
+      <span>NASA C-MAPSS Benchmark • Built with Python, PyTorch, XGBoost, and FastAPI</span>
+    </div>
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

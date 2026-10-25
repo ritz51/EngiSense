@@ -69,7 +69,7 @@ def main() -> None:
             f"last RUL={engine_rows['RUL'].iloc[-1]}"
         )
 
-    print(f"\nRUL validation completed. Outputs saved to: {output_dir}")
+    print("\nRUL validation completed. Outputs saved to: outputs/rul")
 
 
 if __name__ == "__main__":

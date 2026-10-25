@@ -1,4 +1,4 @@
-# EngineLife requirements
+# EngiSense requirements
 pandas
 numpy
 scipy
@@ -7,6 +7,11 @@ matplotlib
 seaborn
 scikit-learn
 xgboost
+torch
 fastapi
 uvicorn[standard]
+python-multipart
 python-dotenv
+joblib
+pytest
+httpx

@@ -20,7 +20,7 @@ from typing import Dict, List, Any
 import numpy as np
 import pandas as pd
 
-from .data_loader import load_subset
+from .data_loader import load_subset, PROJECT_ROOT
 
 # ---------------------------------------------------------------------------
 # Helper utilities
@@ -78,7 +78,7 @@ def _column_stats(df: pd.DataFrame) -> Dict[str, Any]:
     return desc
 
 
-def validate_subset(subset: str, base_path: pathlib.Path | str = pathlib.Path("c:/ml_package/EngineLife")) -> Dict[str, Any]:
+def validate_subset(subset: str, base_path: pathlib.Path | str = PROJECT_ROOT) -> Dict[str, Any]:
     """Validate a single FD subset and return a dictionary of results.
 
     The function performs the checks listed in the specification – row counts,
@@ -186,7 +186,7 @@ def validate_subset(subset: str, base_path: pathlib.Path | str = pathlib.Path("c
     return report
 
 
-def run_validation_all(base_path: pathlib.Path | str = pathlib.Path("c:/ml_package/EngineLife")) -> List[Dict[str, Any]]:
+def run_validation_all(base_path: pathlib.Path | str = PROJECT_ROOT) -> List[Dict[str, Any]]:
     """Validate all four FD subsets and write the combined report.
     The output files are placed under ``outputs/validation_report.json`` and
     ``outputs/validation_report.csv``.
@@ -205,7 +205,7 @@ def run_validation_all(base_path: pathlib.Path | str = pathlib.Path("c:/ml_packa
     json_path = out_dir / "validation_report.json"
     csv_path = out_dir / "validation_report.csv"
     # Write JSON – pretty printed for readability
-    json_path.write_text(json.dumps(results, indent=2))
+    json_path.write_text(json.dumps(results, indent=2), encoding="utf-8")
     # Write CSV – flatten the dict for each subset (only a subset of fields)
     rows = []
     for r in results:
@@ -225,7 +225,7 @@ def run_validation_all(base_path: pathlib.Path | str = pathlib.Path("c:/ml_packa
         }
         rows.append(row)
     pd.DataFrame(rows).to_csv(csv_path, index=False)
-    print(f"Validation report written to {json_path} and {csv_path}")
+    print("Validation report written to outputs/validation_report.json and outputs/validation_report.csv")
     return results
 
 

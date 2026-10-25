@@ -28,8 +28,8 @@ import statsmodels.api as sm
 import statsmodels.formula.api as smf
 
 
-DEFAULT_OUTPUT_DIR = pathlib.Path(
-    "C:/ml_package/EngineLife/outputs"
+DEFAULT_OUTPUT_DIR = (
+    pathlib.Path(__file__).resolve().parent.parent / "outputs"
 )
 
 
@@ -744,7 +744,7 @@ def run_full_inference(
         encoding="utf-8",
     )
 
-    print(f"Statistical inference report written to {json_path}")
+    print("Statistical inference report written to outputs/statistical_inference_report.json")
     return report
 
 

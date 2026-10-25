@@ -371,12 +371,7 @@ def _run_dataset_pipeline() -> None:
         print(f"{subset} training RUL summary: {train_summary}")
         print(f"{subset} test RUL summary: {test_summary}")
 
-    print(f"\nRUL outputs saved to: {output_dir}")
-
-
-if __name__ == "__main__":
-    _run_sanity_tests()
-    _run_dataset_pipeline()
+    print("\nRUL outputs saved to: outputs/rul")
 
 
 if __name__ == "__main__":
